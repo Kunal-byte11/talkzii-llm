@@ -38,8 +38,8 @@ const hind = Hind({ // Serif-style font for Wise Dadi
   weight: ['400', '500', '600', '700'],
 });
 
-// IMPORTANT: Replace "YOUR_GA_MEASUREMENT_ID" with your actual Google Analytics 4 Measurement ID
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "YOUR_GA_MEASUREMENT_ID";
+// Use the provided GA Measurement ID directly or fallback to environment variable / placeholder
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-GC1HKJBY12";
 
 export const metadata: Metadata = {
   title: 'Talkzi AI - Your Desi Bestie',
