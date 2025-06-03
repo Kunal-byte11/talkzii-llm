@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error("Error fetching initial session:", sessionError.message);
+          console.error("Error fetching initial session:", sessionError.message || JSON.stringify(sessionError));
           if (sessionError.message.includes("Invalid Refresh Token") || sessionError.message.includes("Refresh Token Not Found") || sessionError.message.includes("invalid_grant")) {
             await supabase.auth.signOut(); // Attempt to clear bad state
           }
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const { data: userProfile, error: profileFetchError } = await supabase
               .from('profiles').select('*').eq('id', currentAuthUser.id).single();
             if (profileFetchError && profileFetchError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine for new users
-              console.error('Initial profile fetch error:', profileFetchError);
+              console.error('Initial profile fetch error:', profileFetchError.message || JSON.stringify(profileFetchError));
             }
             setProfile(userProfile as UserProfile | null);
           } else {
@@ -139,7 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .single();
             
             if (profileError && profileError.code !== 'PGRST116') { 
-              console.error('Profile fetch error on auth change:', profileError); 
+              console.error('Profile fetch error on auth change:', profileError.message || JSON.stringify(profileError)); 
             }
             setProfile(userProfileData as UserProfile | null);
             setIsProfileLoadingInternal(false); // Profile fetch attempt complete
@@ -180,7 +180,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error("Error signing out: ", error);
+      console.error("Error signing out: ", error.message || JSON.stringify(error));
     }
     // onAuthStateChange will handle setting user/session/profile to null
   };
@@ -210,3 +210,4 @@ export const useAuth = (): AuthContextType => {
   }
   return context;
 };
+
