@@ -203,8 +203,14 @@ export const hinglishAICompanion = ai.defineFlow(
     } catch (err) {
       console.error('AI generation error in hinglishAICompanionFlow:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      let displayMessage = `Oops! Connection mein thodi problem aa rahi hai. Please try again later. (Details: ${errorMessage.substring(0,100)})`;
+      if (errorMessage.includes('FAILED_PRECONDITION') || errorMessage.includes('Generation blocked') || errorMessage.includes('blocked by safety settings')) {
+        displayMessage = `Oops! Main is request ko abhi process nahi kar paa raha/rahi. Shayad kuch aur topic try karein? 🙏 (Details: Content generation issue)`;
+      }
+      
       return {
-        response: `Oops! Connection mein thodi problem aa rahi hai. Please try again later. (Details: ${errorMessage.substring(0,100)})`,
+        response: displayMessage,
       };
     }
   }
