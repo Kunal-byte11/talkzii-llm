@@ -78,80 +78,87 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentEventSession: Session | null) => {
-        console.log(`Auth Event: ${event}`, currentEventSession);
+        try {
+          console.log(`Auth Event: ${event}`, currentEventSession);
 
-        const newAuthUser = currentEventSession?.user ?? null;
-        const previousUser = user; // Get user state *before* it's updated by this event
+          const newAuthUser = currentEventSession?.user ?? null;
+          const previousUser = user; // Get user state *before* it's updated by this event
 
-        // Update core session and user state immediately
-        setSession(currentEventSession);
-        setUser(newAuthUser);
+          // Update core session and user state immediately
+          setSession(currentEventSession);
+          setUser(newAuthUser);
 
-        const isActualUserIdentityChange = newAuthUser?.id !== previousUser?.id;
-        const isLoginEvent = event === 'SIGNED_IN' && isActualUserIdentityChange;
-        const isLogoutEvent = event === 'SIGNED_OUT';
+          const isActualUserIdentityChange = newAuthUser?.id !== previousUser?.id;
+          const isLoginEvent = event === 'SIGNED_IN' && isActualUserIdentityChange;
+          const isLogoutEvent = event === 'SIGNED_OUT';
 
-        // Set global loading flags only for significant, disruptive changes
-        if (isLoginEvent || isLogoutEvent) {
-          setIsAuthLoadingInternal(true);
-          setIsProfileLoadingInternal(true); // Profile will need fetch or clear
-        } else if (event === 'USER_UPDATED' && newAuthUser?.id === previousUser?.id) {
-          // User's own data updated (e.g., email change verified), profile needs re-fetch
-          // Auth state itself might be stable, but profile data isn't.
-          setIsProfileLoadingInternal(true);
-        }
-        // For TOKEN_REFRESHED or INITIAL_SESSION (if user is same), avoid setting global loading flags
-        // to prevent UI flashing "Preparing..."
-
-        if (isLogoutEvent) {
-          console.log('User signed out. Clearing profile and localStorage.');
-          if (previousUser?.id) {
-            try {
-              localStorage.removeItem(`talkzii_chat_history_${previousUser.id}`);
-              localStorage.removeItem(`talkzii_ai_friend_type_${previousUser.id}`);
-              localStorage.removeItem(`talkzii_chat_memory_${previousUser.id}`);
-              localStorage.removeItem(`talkzii_memory_warning_shown_${previousUser.id}`);
-            } catch (e) {
-              console.error("Error clearing user-specific localStorage on sign out", e);
-            }
+          // Set global loading flags only for significant, disruptive changes
+          if (isLoginEvent || isLogoutEvent) {
+            setIsAuthLoadingInternal(true);
+            setIsProfileLoadingInternal(true); // Profile will need fetch or clear
+          } else if (event === 'USER_UPDATED' && newAuthUser?.id === previousUser?.id) {
+            // User's own data updated (e.g., email change verified), profile needs re-fetch
+            // Auth state itself might be stable, but profile data isn't.
+            setIsProfileLoadingInternal(true);
           }
-          setProfile(null);
-          setIsAuthLoadingInternal(false); // Reset loading flags
-          setIsProfileLoadingInternal(false);
-          return;
-        }
+          // For TOKEN_REFRESHED or INITIAL_SESSION (if user is same), avoid setting global loading flags
+          // to prevent UI flashing "Preparing..."
 
-        if (newAuthUser) {
-          // Fetch profile if:
-          // 1. User identity actually changed (isActualUserIdentityChange).
-          // 2. Event is USER_UPDATED (Supabase indicates user object on their end changed).
-          // 3. Profile is currently null for this newAuthUser (could be initial load for this user).
-          if (isActualUserIdentityChange || (event === 'USER_UPDATED' && newAuthUser.id === previousUser?.id) || !profile || profile.id !== newAuthUser.id ) {
-             // Ensure profile loading is true if we are about to fetch and it wasn't set by the more global flags
-            if (!isProfileLoadingInternal && (isActualUserIdentityChange || (event === 'USER_UPDATED' && newAuthUser.id === previousUser?.id) || !profile || profile.id !== newAuthUser.id)) {
-                setIsProfileLoadingInternal(true);
+          if (isLogoutEvent) {
+            console.log('User signed out. Clearing profile and localStorage.');
+            if (previousUser?.id) {
+              try {
+                localStorage.removeItem(`talkzii_chat_history_${previousUser.id}`);
+                localStorage.removeItem(`talkzii_ai_friend_type_${previousUser.id}`);
+                localStorage.removeItem(`talkzii_chat_memory_${previousUser.id}`);
+                localStorage.removeItem(`talkzii_memory_warning_shown_${previousUser.id}`);
+              } catch (e) {
+                console.error("Error clearing user-specific localStorage on sign out", e);
+              }
             }
-
-            const { data: userProfileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', newAuthUser.id)
-              .single();
-            
-            if (profileError && profileError.code !== 'PGRST116') { 
-              console.error('Profile fetch error on auth change:', profileError.message || JSON.stringify(profileError)); 
-            }
-            setProfile(userProfileData as UserProfile | null);
-            setIsProfileLoadingInternal(false); // Profile fetch attempt complete
+            setProfile(null);
+            setIsAuthLoadingInternal(false); // Reset loading flags
+            setIsProfileLoadingInternal(false);
+            return;
           }
-        } else { // No newAuthUser
-          setProfile(null);
-          setIsProfileLoadingInternal(false); // No user, so profile loading is definitively false.
-        }
 
-        // Reset auth loading if it was a significant event
-        if (isLoginEvent || isLogoutEvent) {
+          if (newAuthUser) {
+            // Fetch profile if:
+            // 1. User identity actually changed (isActualUserIdentityChange).
+            // 2. Event is USER_UPDATED (Supabase indicates user object on their end changed).
+            // 3. Profile is currently null for this newAuthUser (could be initial load for this user).
+            if (isActualUserIdentityChange || (event === 'USER_UPDATED' && newAuthUser.id === previousUser?.id) || !profile || profile.id !== newAuthUser.id ) {
+               // Ensure profile loading is true if we are about to fetch and it wasn't set by the more global flags
+              if (!isProfileLoadingInternal && (isActualUserIdentityChange || (event === 'USER_UPDATED' && newAuthUser.id === previousUser?.id) || !profile || profile.id !== newAuthUser.id)) {
+                  setIsProfileLoadingInternal(true);
+              }
+
+              const { data: userProfileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', newAuthUser.id)
+                .single();
+              
+              if (profileError && profileError.code !== 'PGRST116') { 
+                console.error('Profile fetch error on auth change:', profileError.message || JSON.stringify(profileError)); 
+              }
+              setProfile(userProfileData as UserProfile | null);
+              setIsProfileLoadingInternal(false); // Profile fetch attempt complete
+            }
+          } else { // No newAuthUser
+            setProfile(null);
+            setIsProfileLoadingInternal(false); // No user, so profile loading is definitively false.
+          }
+
+          // Reset auth loading if it was a significant event
+          if (isLoginEvent || isLogoutEvent) {
+            setIsAuthLoadingInternal(false);
+          }
+        } catch (error) {
+          console.error("Error in onAuthStateChange handler:", error);
+          // Ensure loading states are reset in case of an error within the handler
           setIsAuthLoadingInternal(false);
+          setIsProfileLoadingInternal(false);
         }
       }
     );
