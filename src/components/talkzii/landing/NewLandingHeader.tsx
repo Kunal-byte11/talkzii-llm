@@ -6,9 +6,7 @@ import { Logo } from '@/components/talkzi/Logo';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/nextjs";
-
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for Supabase
 import { MenuItem, MenuContainer } from "@/components/ui/fluid-menu";
 import {
   Menu as MenuIcon,
@@ -18,10 +16,10 @@ import {
   Mail as MailIcon,
   Info,
   LogIn,
+  LogOut, // Added LogOut icon
   Loader2,
   MessageSquarePlus
 } from 'lucide-react';
-
 
 const navLinks = [
   { href: '#features-section', label: 'Features', icon: <LayoutGrid size={18} strokeWidth={1.5} /> },
@@ -32,21 +30,34 @@ const navLinks = [
 
 export function NewLandingHeader() {
   const router = useRouter();
+  const { user, signOut, isLoading } = useAuth(); // Use Supabase auth context
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const handleGetStarted = () => {
+  const handleGetStartedOrApp = () => {
     setIsNavigating(true);
-    // Clerk's <SignedIn> and <SignedOut> will handle the display.
-    // The NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL will handle redirection after sign-in.
-    // If user is already signed in, this button might take them to /aipersona
-    router.push('/aipersona'); 
+    if (user) {
+      router.push('/aipersona');
+    } else {
+      router.push('/login'); // Redirect to Supabase login page
+    }
   };
   
   const handleLetsChatMobile = () => {
     setIsNavigating(true);
-    router.push('/aipersona');
+     if (user) {
+      router.push('/aipersona');
+    } else {
+      router.push('/login');
+    }
   };
 
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await signOut();
+    setIsSigningOut(false);
+    router.push('/'); // Redirect to home after sign out
+  };
 
   const handleNavLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const id = href.substring(1);
@@ -58,6 +69,8 @@ export function NewLandingHeader() {
         block: 'start' 
       });
     }
+    // For mobile menu, consider closing the menu after click if MenuContainer exposes a close method
+    // context?.closeMenu?.(); // Assuming MenuContext provides closeMenu
   };
 
   return (
@@ -82,35 +95,48 @@ export function NewLandingHeader() {
               {link.label}
             </a>
           ))}
-          <SignedIn>
-            <Button
-              onClick={handleGetStarted}
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
-              disabled={isNavigating}
-            >
-              {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Go to App
-            </Button>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-          <SignedOut>
-            <SignInButton mode="modal">
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : user ? (
+            <>
               <Button
+                onClick={handleGetStartedOrApp}
                 size="sm"
                 className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
                 disabled={isNavigating}
               >
                 {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Get Started
+                Go to App
               </Button>
-            </SignInButton>
-          </SignedOut>
+              <Button
+                onClick={handleSignOut}
+                variant="outline"
+                size="sm"
+                className="rounded-full px-4 py-2"
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogOut className="mr-1 h-4 w-4" />}
+                Sign Out
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={handleGetStartedOrApp}
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
+              disabled={isNavigating}
+            >
+              {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Get Started
+            </Button>
+          )}
         </nav>
 
         {/* Mobile Navigation - Fluid Menu */}
         <div className="md:hidden flex items-center gap-2">
-          <SignedIn>
+          {isLoading ? (
+             <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : user ? (
              <Button
                 onClick={handleLetsChatMobile}
                 size="sm"
@@ -120,11 +146,9 @@ export function NewLandingHeader() {
                 {isNavigating ? (<Loader2 className="mr-1 h-3 w-3 animate-spin" />) : (<MessageSquarePlus className="mr-1 h-3 w-3" />)}
                 Let's Chat
               </Button>
-            <UserButton afterSignOutUrl="/" />
-          </SignedIn>
-          <SignedOut>
-             <SignInButton mode="modal">
-                <Button
+          ) : (
+             <Button
+                  onClick={handleLetsChatMobile}
                   size="sm"
                   className="rounded-full px-3 py-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                   disabled={isNavigating}
@@ -132,8 +156,7 @@ export function NewLandingHeader() {
                   {isNavigating ? (<Loader2 className="mr-1 h-3 w-3 animate-spin" />) : (<LogIn className="mr-1 h-3 w-3" />)}
                    Let's Chat
                 </Button>
-              </SignInButton>
-          </SignedOut>
+          )}
 
           <MenuContainer className="relative">
             <MenuItem
@@ -157,11 +180,21 @@ export function NewLandingHeader() {
                 href={link.href}
                 onClick={(e) => {
                   handleNavLinkClick(e as React.MouseEvent<HTMLAnchorElement>, link.href);
+                  // Assuming MenuContext exposes a closeMenu method or toggle works for closing
+                  // (MenuContainer's useOnClickOutside might handle this if not a toggle item)
                 }}
               >
                 {link.label}
               </MenuItem>
             ))}
+            {!isLoading && user && (
+              <MenuItem
+                icon={<LogOut size={16} strokeWidth={2}/>}
+                onClick={handleSignOut}
+              >
+                Sign Out
+              </MenuItem>
+            )}
           </MenuContainer>
         </div>
       </div>

@@ -1,17 +1,6 @@
+# Supabase (Keep these if you were using Supabase for database)
+# NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
-import { authMiddleware } from "@clerk/nextjs/server";
-
-export default authMiddleware({
-  // Routes that can be accessed while signed out
-  publicRoutes: ['/', '/explore', '/sign-in(.*)', '/sign-up(.*)', '/api/public/(.*)', '/demos/(.*)'],
-  // Routes that can always be accessed, and have
-  // no authentication information
-  ignoredRoutes: ["/api/webhook/clerk"],
-});
-
-export const config = {
-  // Protects all routes, including api/trpc.
-  // See https://clerk.com/docs/references/nextjs/auth-middleware
-  // for more information about configuring your Middleware
-  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
-};
+# Google Analytics (if you set it up)
+# NEXT_PUBLIC_GA_MEASUREMENT_ID=G-GC1HKJBY12

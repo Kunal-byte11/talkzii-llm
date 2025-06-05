@@ -6,21 +6,21 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/talkzi/Logo';
 import Link from 'next/link';
-import { Home, User as UserIcon, LogIn, MessageSquareHeart } from 'lucide-react';
+import { Home, User as UserIcon, LogIn, LogOut, MessageSquareHeart } from 'lucide-react'; // Added LogOut
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { personaOptions } from '@/lib/personaOptions';
 import { ComingSoonBanner } from '@/components/talkzi/ComingSoonBanner';
-import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for Supabase
 
 const getAIFriendTypeKey = (userId?: string) => userId ? `talkzii_ai_friend_type_${userId}` : 'talkzii_ai_friend_type_guest';
 const getChatHistoryKey = (userId?: string) => userId ? `talkzii_chat_history_${userId}` : 'talkzii_chat_history_guest';
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { user, isLoaded: isAuthLoading } = useUser(); // Clerk hook
+  const { user, profile, isLoading: isAuthLoading, signOut } = useAuth(); // Use Supabase auth
   const { toast } = useToast();
   const [isClientReady, setIsClientReady] = useState(false);
 
@@ -32,6 +32,7 @@ export default function ExplorePage() {
     if (!isClientReady) return;
 
     if (!user) { 
+      // For guests or logged-out users, prompt to login for non-default personas
       if (personaValue === 'default') {
         try {
           localStorage.removeItem(getAIFriendTypeKey(undefined));
@@ -43,18 +44,19 @@ export default function ExplorePage() {
         } catch (error) {
           console.error("Error clearing guest localStorage for default persona", error);
         }
-        router.push('/chat');
+        router.push('/chat'); // Guests can chat with default persona
       } else {
         const personaLabel = personaOptions.find(p => p.value === personaValue)?.label || "this persona";
         toast({
           title: "Login to Chat",
           description: `Please log in to chat with ${personaLabel}. Guests can only chat with Talkzii (default).`,
         });
-        // Optionally trigger Clerk sign-in modal
+        router.push('/login'); // Redirect to login for other personas
       }
       return;
     }
 
+    // For logged-in users
     try {
       const AI_FRIEND_TYPE_KEY_USER = getAIFriendTypeKey(user.id);
       const CHAT_HISTORY_KEY_USER = getChatHistoryKey(user.id);
@@ -84,6 +86,12 @@ export default function ExplorePage() {
     }
     router.push('/chat');
   };
+  
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/'); // Redirect to home after sign out
+  };
+
 
   if (isAuthLoading || !isClientReady) {
     return <LoadingSpinner message={isAuthLoading ? "Verifying authentication..." : "Preparing explore page..."} />;
@@ -109,29 +117,28 @@ export default function ExplorePage() {
                 <span className="sr-only">Select AI Persona</span>
               </Link>
             </Button>
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-            <SignedOut>
-               <SignInButton mode="modal">
-                <Button variant="link" className="text-primary text-base font-bold hover:no-underline">
-                  <LogIn className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
-                  <span className="hidden md:inline">Login</span>
+            {user ? (
+               <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
+                <LogOut className="h-5 w-5 text-muted-foreground" />
+              </Button>
+            ) : (
+               <Button variant="link" asChild className="text-primary text-base font-bold hover:no-underline">
+                 <Link href="/login">
+                    <LogIn className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
+                    <span className="hidden md:inline">Login</span>
+                 </Link>
                 </Button>
-              </SignInButton>
-            </SignedOut>
+            )}
           </div>
         </header>
         <ComingSoonBanner />
-        <SignedIn>
-          {user && (
-            <div className="px-4 pt-3 text-left">
-                <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
-                    <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.primaryEmailAddress?.emailAddress || user.username}
-                </p>
-            </div>
-          )}
-        </SignedIn>
+        {user && (
+          <div className="px-4 pt-3 text-left">
+              <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
+                  <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {profile?.email || user.email}
+              </p>
+          </div>
+        )}
         
         <section className="py-8 md:py-12">
           <div className="container mx-auto px-4">

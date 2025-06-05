@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase/client';
 import { personaOptions, getDefaultPersonaImage, getPersonaTheme, type PersonaTheme } from '@/lib/personaOptions';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useUser } from '@clerk/nextjs'; // Clerk hook
+import { useAuth } from '@/contexts/AuthContext'; // Supabase auth hook
 
 // Enhanced memory system
 interface ChatMemory {
@@ -26,12 +26,12 @@ interface ChatMemory {
     preferences?: string[];
     interests?: string[];
     personalInfo?: Record<string, string>;
-    // Gender is now read from Clerk user.publicMetadata, not stored here directly
+    // Gender is now read from Supabase profile.gender, not stored here directly
   };
   conversationContext: {
     recentTopics: string[];
     lastMentionedEntities: string[];
-    conversationTone: 'casual' | 'friendly' | 'professional'; // Added 'professional'
+    conversationTone: 'casual' | 'friendly' | 'professional';
   };
   chatHistory: {
     messageId: string;
@@ -54,7 +54,6 @@ const MAX_CONTEXT_MESSAGES = 5;
 const MEMORY_WARNING_THRESHOLD = 18;
 
 
-// Helper functions for memory management
 const extractUserInfo = (message: string): Partial<ChatMemory['userProfile']> => {
   const info: Partial<ChatMemory['userProfile']> = {};
   const personalInfo: Record<string, string> = {};
@@ -102,15 +101,15 @@ const extractUserInfo = (message: string): Partial<ChatMemory['userProfile']> =>
   return info;
 };
 
-const buildContextForAI = (memory: ChatMemory, currentMessage: string, clerkUserGender?: string): string => {
+const buildContextForAI = (memory: ChatMemory, currentMessage: string, userGenderFromProfile?: string): string => {
   let contextParts: string[] = [];
 
   if (memory.userProfile.name) {
     contextParts.push(`User's name is ${memory.userProfile.name}.`);
   }
   
-  if (clerkUserGender) {
-    contextParts.push(`User's gender is ${clerkUserGender}.`);
+  if (userGenderFromProfile) {
+    contextParts.push(`User's gender is ${userGenderFromProfile}.`);
   }
 
   if (memory.userProfile.personalInfo && Object.keys(memory.userProfile.personalInfo).length > 0) {
@@ -145,7 +144,7 @@ const buildContextForAI = (memory: ChatMemory, currentMessage: string, clerkUser
 
 async function saveMessageFeedbackToSupabase(feedbackData: {
   message_id: string;
-  user_id: string; // Clerk user ID
+  user_id: string; // Supabase user ID
   ai_response_text: string;
   user_prompt_text: string;
   feedback: 'liked' | 'disliked';
@@ -162,7 +161,7 @@ async function saveMessageFeedbackToSupabase(feedbackData: {
 }
 
 export function ChatInterface() {
-  const { user, isLoaded: isAuthLoading } = useUser(); // Clerk hook
+  const { user, profile, isLoading: isAuthLoading } = useAuth(); // Supabase auth
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatMemory, setChatMemory] = useState<ChatMemory>({
     userProfile: {},
@@ -417,16 +416,14 @@ export function ChatInterface() {
         return;
       }
       
-      // Get gender from Clerk user object's publicMetadata
-      const clerkUserGender = user?.publicMetadata?.gender as string | undefined;
-      const messageForAI = buildContextForAI(chatMemory, userInput, clerkUserGender);
+      const userGenderFromProfile = profile?.gender;
+      const messageForAI = buildContextForAI(chatMemory, userInput, userGenderFromProfile);
       
       const companionInput: HinglishAICompanionInput = { message: messageForAI };
 
-      // Pass gender to AI if available from Clerk
-      if (clerkUserGender) {
-         if (clerkUserGender === 'male' || clerkUserGender === 'female' || clerkUserGender === 'prefer_not_to_say') {
-            companionInput.userGender = clerkUserGender as 'male' | 'female' | 'prefer_not_to_say';
+      if (userGenderFromProfile) {
+         if (userGenderFromProfile === 'male' || userGenderFromProfile === 'female' || userGenderFromProfile === 'prefer_not_to_say') {
+            companionInput.userGender = userGenderFromProfile as 'male' | 'female' | 'prefer_not_to_say';
          }
       }
       
@@ -466,10 +463,10 @@ export function ChatInterface() {
     } finally {
       setIsAiLoading(false);
     }
-  }, [user, toast, currentAiFriendType, chatCount, incrementChatCount, isChatCountLoading, chatMemory, updateChatMemory, hasShownMemoryFullWarning, localStorageKeys.memoryWarning]); 
+  }, [user, profile, toast, currentAiFriendType, chatCount, incrementChatCount, isChatCountLoading, chatMemory, updateChatMemory, hasShownMemoryFullWarning, localStorageKeys.memoryWarning]); 
 
   const handleFeedback = useCallback(async (messageId: string, feedbackType: 'liked' | 'disliked') => {
-    if (!user) {
+    if (!user) { // Guests cannot give feedback, or require login
       toast({ title: "Login Required", description: "Please log in to give feedback.", variant: "destructive" });
       return;
     }
@@ -505,7 +502,7 @@ export function ChatInterface() {
   const messageLimit = user ? LOGGED_IN_FREE_TIER_MESSAGE_LIMIT : GUEST_MESSAGE_LIMIT;
   const messagesRemaining = isChatCountLoading ? '...' : Math.max(0, messageLimit - chatCount);
   
-  if (isAuthLoading || !isClientSide) {
+  if (isAuthLoading || !isClientSide) { // If Supabase auth still loading, show spinner
     return <div className="flex flex-col items-center justify-center h-full"><TypingIndicator personaImageUrl={currentAiPersonaImage} personaName={personaDisplayName} /> <p className="ml-2 text-sm text-muted-foreground">Loading chat state...</p></div>;
   }
   
@@ -515,7 +512,7 @@ export function ChatInterface() {
                        (chatMemory.userProfile.personalInfo && Object.keys(chatMemory.userProfile.personalInfo).length > 0) ||
                        (chatMemory.chatHistory && chatMemory.chatHistory.length > 0);
 
-  const clerkUserGenderForDisplay = user?.publicMetadata?.gender as string | undefined;
+  const userGenderForDisplay = profile?.gender;
 
   return (
     <div className={cn("flex flex-col h-full bg-background relative", activeFontClass)}>
@@ -537,11 +534,11 @@ export function ChatInterface() {
               <p className="text-sm">
                 Chatting with: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{personaDisplayName}</span>
               </p>
-              {user && clerkUserGenderForDisplay && (
-                <p className="text-sm">Gender for AI: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{clerkUserGenderForDisplay.replace(/_/g, ' ')}</span></p>
+              {user && userGenderForDisplay && (
+                <p className="text-sm">Gender for AI: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{userGenderForDisplay.replace(/_/g, ' ')}</span></p>
               )}
-              {user && !clerkUserGenderForDisplay && (
-                <p className="text-xs text-muted-foreground">Set your gender in your profile for a more tailored chat experience!</p>
+              {user && !userGenderForDisplay && (
+                <p className="text-xs text-muted-foreground">Set your gender in your profile (if available) for a more tailored chat experience!</p>
               )}
               <p className="text-sm">
                 Messages remaining: <span className="font-semibold" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{messagesRemaining} / {messageLimit}</span>
@@ -602,7 +599,7 @@ export function ChatInterface() {
       
       <ChatInputBar 
         onSendMessage={handleSendMessage} 
-        isLoading={isAiLoading || isChatCountLoading} 
+        isLoading={isAiLoading || isChatCountLoading || isAuthLoading} // Disable input if auth is loading
         sendButtonAccentColor={currentPersonaTheme?.accentColor}
         onFocus={() => { if (window.innerWidth < 768 && !isNearBottom) setTimeout(() => scrollToBottom(true), 300); }}
       />

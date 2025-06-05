@@ -6,21 +6,21 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/talkzi/Logo';
 import Link from 'next/link';
-import { Home, User as UserIcon, LogIn } from 'lucide-react'; // LogOut removed, UserButton will handle
+import { Home, User as UserIcon, LogIn, LogOut } from 'lucide-react'; // Added LogOut
 import { useToast } from '@/hooks/use-toast';
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { personaOptions } from '@/lib/personaOptions';
 import { ComingSoonBanner } from '@/components/talkzi/ComingSoonBanner';
-import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for Supabase
 
 const getAIFriendTypeKey = (userId?: string) => userId ? `talkzii_ai_friend_type_${userId}` : 'talkzii_ai_friend_type_guest';
 const getChatHistoryKey = (userId?: string) => userId ? `talkzii_chat_history_${userId}` : 'talkzii_chat_history_guest';
 
 export default function AIPersonaPage() {
   const router = useRouter();
-  const { user, isLoaded } = useUser(); // Clerk's hook
+  const { user, profile, isLoading: isAuthLoading, signOut } = useAuth(); // Use Supabase auth
   const [selectedPersona, setSelectedPersona] = useState<string>('default');
   const [isPersonaLoading, setIsPersonaLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -31,24 +31,25 @@ export default function AIPersonaPage() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!isLoaded) return; // Wait for Clerk to load user
+    if (isAuthLoading) return; // Wait for Supabase auth to load
+
+    if (!user) {
+      router.push('/login'); // Redirect to Supabase login if not authenticated
+      return;
+    }
 
     setIsPersonaLoading(true);
-    if (!user) { 
-      setSelectedPersona('default'); // Guest default
-    } else { 
-      try {
-        const savedPersona = localStorage.getItem(AI_FRIEND_TYPE_KEY);
-        setSelectedPersona(savedPersona || 'default');     
-      } catch (error) {
-        console.error("Error reading persona from localStorage for user", error);
-        setSelectedPersona('default');
-      }
+    try {
+      const savedPersona = localStorage.getItem(AI_FRIEND_TYPE_KEY);
+      setSelectedPersona(savedPersona || 'default');     
+    } catch (error) {
+      console.error("Error reading persona from localStorage for user", error);
+      setSelectedPersona('default');
     }
     setIsPersonaLoading(false);
-  }, [isLoaded, AI_FRIEND_TYPE_KEY, user]);
+  }, [isAuthLoading, user, router, AI_FRIEND_TYPE_KEY]);
 
-  const handleGuestPersonaConfirm = () => {
+  const handleGuestPersonaConfirm = () => { // This flow might be less relevant with mandatory login
     setSelectedPersona('default'); 
     setIsRedirecting(true);
 
@@ -57,7 +58,7 @@ export default function AIPersonaPage() {
         localStorage.removeItem(getAIFriendTypeKey(undefined)); 
         localStorage.removeItem(getChatHistoryKey(undefined)); 
         toast({
-          title: "Continuing as Guest",
+          title: "Continuing as Guest", // Or remove guest concept
           description: "You'll be chatting with Talkzii (default).",
         });
       } catch (error) {
@@ -68,19 +69,12 @@ export default function AIPersonaPage() {
   };
 
   const handlePersonaSelect = (personaValue: string) => {
-    if (!user) { 
-      if (personaValue === 'default') {
-        setSelectedPersona('default'); 
-        handleGuestPersonaConfirm(); 
-      } else {
-        const personaLabel = personaOptions.find(p => p.value === personaValue)?.label || "this persona";
-        toast({
-          title: "Login to Use Persona",
-          description: `Please log in to chat with ${personaLabel}. Guests chat with Talkzii (default).`,
-        });
-        // Optionally, trigger Clerk sign-in modal here
-        // For now, user needs to click login button manually if they want to use non-default.
-      }
+    if (!user) { // Should not happen if redirect works
+      toast({
+        title: "Login Required",
+        description: `Please log in to chat.`,
+      });
+      router.push('/login');
       return; 
     }
 
@@ -115,11 +109,17 @@ export default function AIPersonaPage() {
       router.push('/chat');
     }, 50);
   };
+  
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/'); // Redirect to home after sign out
+  };
 
-  if (!isLoaded || isPersonaLoading || isRedirecting) {
+
+  if (isAuthLoading || isPersonaLoading || isRedirecting || !user) { // Added !user check
     const message = isRedirecting
       ? `Preparing chat with ${personaOptions.find(p => p.value === selectedPersona)?.label || 'Talkzii'}...`
-      : !isLoaded
+      : isAuthLoading || !user
       ? "Verifying authentication..."
       : "Loading persona settings...";
     return <LoadingSpinner message={message} />;
@@ -141,35 +141,35 @@ export default function AIPersonaPage() {
                 <span className="sr-only">Home</span>
               </Link>
             </Button>
-            <SignedIn>
-              <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="link" className="text-primary text-base font-bold">
+            {user ? (
+              <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
+                <LogOut className="h-5 w-5 text-muted-foreground" />
+                 <span className="sr-only">Sign Out</span>
+              </Button>
+            ) : (
+              <Button variant="link" asChild className="text-primary text-base font-bold">
+                <Link href="/login">
                   <LogIn className="h-5 w-5 mr-1 md:mr-1" />
                   <span className="hidden md:inline">Login</span>
-                </Button>
-              </SignInButton>
-            </SignedOut>
+                </Link>
+              </Button>
+            )}
           </div>
         </header>
         <ComingSoonBanner />
-        <SignedIn>
-            {user && (
-              <div className="px-4 pt-3 text-left">
-                  <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
-                      <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.primaryEmailAddress?.emailAddress || user.username}
-                  </p>
-                  {user.publicMetadata.gender && (
-                     <p className="text-xs text-muted-foreground mb-1">Gender for AI: {String(user.publicMetadata.gender)}</p>
-                  )}
-                   {!user.publicMetadata.gender && (
-                     <p className="text-xs text-muted-foreground mb-1">Tip: You can set your gender in your profile (via Clerk dashboard or future profile page) for a more personalized chat!</p>
-                  )}
-              </div>
-            )}
-        </SignedIn>
+        {user && (
+          <div className="px-4 pt-3 text-left">
+              <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
+                  <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {profile?.email || user.email}
+              </p>
+              {profile?.gender && (
+                 <p className="text-xs text-muted-foreground mb-1">Gender for AI: {String(profile.gender)}</p>
+              )}
+               {!profile?.gender && (
+                 <p className="text-xs text-muted-foreground mb-1">Tip: You can set your gender in your profile page (if available) for a more personalized chat!</p>
+              )}
+          </div>
+        )}
         
         <h2 className="text-foreground text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5 text-left">
           Choose your Talkzii
@@ -182,8 +182,9 @@ export default function AIPersonaPage() {
               onClick={() => handlePersonaSelect(persona.value)}
               className={cn(
                 "flex flex-col gap-3 text-center pb-3 items-center p-3 rounded-xl border-2 transition-all duration-200 ease-in-out hover:shadow-lg cursor-pointer",
-                selectedPersona === persona.value ? 'border-primary ring-2 ring-primary shadow-xl bg-primary/5' : 'border-border bg-card hover:border-primary/50',
-                !user && persona.value !== 'default' && 'opacity-70 hover:border-border hover:shadow-none'
+                selectedPersona === persona.value ? 'border-primary ring-2 ring-primary shadow-xl bg-primary/5' : 'border-border bg-card hover:border-primary/50'
+                // Guest logic might be removed if login is mandatory
+                // !user && persona.value !== 'default' && 'opacity-70 hover:border-border hover:shadow-none' 
               )}
             >
               <div className="relative px-4 w-32 h-32 sm:w-36 sm:h-36 md:w-40 md:h-40">
@@ -204,17 +205,7 @@ export default function AIPersonaPage() {
           ))}
         </div>
         
-        <SignedOut>
-          <div className="px-4 py-6 mt-4">
-            <Button
-              onClick={handleGuestPersonaConfirm}
-              className="w-full gradient-button text-lg py-3 rounded-lg shadow-md hover:shadow-lg transition-shadow"
-              aria-label="Chat with Talkzii (Default)"
-            >
-              Chat with Talkzii (Default)
-            </Button>
-          </div>
-        </SignedOut>
+        {/* Guest confirmation button removed as login is primary flow now */}
       </div>
 
       <footer className="py-6 border-t border-border">

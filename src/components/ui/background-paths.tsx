@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter } from 'next/navigation';
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"; // Clerk components
+import { useAuth } from '@/contexts/AuthContext'; // Supabase auth hook
+import Link from 'next/link'; // For navigation
 
 function FloatingPaths({ position }: { position: number }) {
     const paths = Array.from({ length: 36 }, (_, i) => ({
@@ -66,18 +67,17 @@ export function BackgroundPaths({
 }) {
     const words = title.split(" ");
     const router = useRouter();
+    const { user } = useAuth();
 
-    const handleLoggedInCtaClick = () => {
-        router.push('/aipersona');
+    const handleDefaultCtaClick = () => {
+        if (user) {
+            router.push('/aipersona'); // Or another relevant page for logged-in users
+        } else {
+            router.push('/login'); // For logged-out users
+        }
     };
     
-    // If a custom onCtaClick is provided, use it. Otherwise, handle based on auth state.
-    // For SignedOut users, SignInButton will handle the modal.
-    // For SignedIn users, it will navigate to /aipersona.
-    const finalCtaAction = onCtaClick 
-      ? onCtaClick 
-      : handleLoggedInCtaClick; // This will be used for SignedIn button
-
+    const finalCtaAction = onCtaClick || handleDefaultCtaClick;
 
     return (
         <div className="relative min-h-[calc(100vh-4rem)] sm:min-h-screen w-full flex items-center justify-center overflow-hidden bg-background text-foreground py-12 sm:py-16">
@@ -126,52 +126,26 @@ export function BackgroundPaths({
                          p-px rounded-2xl backdrop-blur-lg
                         overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
                     >
-                      <SignedIn>
-                        <Button
-                            variant="ghost"
-                            onClick={finalCtaAction} // For SignedIn users
-                            className={cn(
-                                "rounded-[1.15rem] px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-semibold backdrop-blur-md",
-                                "bg-card/95 hover:bg-card text-card-foreground",
-                                "transition-all duration-300 group-hover:-translate-y-0.5 border border-border",
-                                "hover:shadow-md"
-                            )}
-                        >
-                             <span className="opacity-90 group-hover:opacity-100 transition-opacity">
-                                {ctaText}
-                            </span>
-                            <span
-                                className="ml-2 sm:ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1
-                                transition-all duration-300"
-                            >
-                                →
-                            </span>
-                        </Button>
-                      </SignedIn>
-                      <SignedOut>
-                        <SignInButton mode="modal" afterSignInUrl={onCtaClick ? undefined : "/aipersona"} afterSignUpUrl={onCtaClick ? undefined : "/aipersona"}>
-                           <Button
-                            variant="ghost"
-                            // onClick is handled by SignInButton for SignedOut users
-                            className={cn(
-                                "rounded-[1.15rem] px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-semibold backdrop-blur-md",
-                                "bg-card/95 hover:bg-card text-card-foreground",
-                                "transition-all duration-300 group-hover:-translate-y-0.5 border border-border",
-                                "hover:shadow-md"
-                            )}
+                      <Button
+                          variant="ghost"
+                          onClick={finalCtaAction}
+                          className={cn(
+                              "rounded-[1.15rem] px-6 py-3 sm:px-8 sm:py-4 text-sm sm:text-base font-semibold backdrop-blur-md",
+                              "bg-card/95 hover:bg-card text-card-foreground",
+                              "transition-all duration-300 group-hover:-translate-y-0.5 border border-border",
+                              "hover:shadow-md"
+                          )}
+                      >
+                           <span className="opacity-90 group-hover:opacity-100 transition-opacity">
+                              {ctaText}
+                          </span>
+                          <span
+                              className="ml-2 sm:ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1
+                              transition-all duration-300"
                           >
-                             <span className="opacity-90 group-hover:opacity-100 transition-opacity">
-                                {ctaText}
-                            </span>
-                            <span
-                                className="ml-2 sm:ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1
-                                transition-all duration-300"
-                            >
-                                →
-                            </span>
-                          </Button>
-                        </SignInButton>
-                      </SignedOut>
+                              →
+                          </span>
+                        </Button>
                     </div>
                 </div>
             </div>

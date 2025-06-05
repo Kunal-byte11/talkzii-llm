@@ -2,18 +2,22 @@
 "use client";
 
 import { Button } from '@/components/ui/button';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react'; // Added Loader2
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs"; // Import Clerk components
+import { useAuth } from '@/contexts/AuthContext'; // Supabase auth hook
+import Link from 'next/link'; // Import Link for navigation
 
 export function HeroSection() {
   const router = useRouter();
+  const { user, isLoading } = useAuth(); // Use Supabase auth context
 
   const handleStartChatting = () => {
-    // For SignedIn users, this will take them to the app.
-    // For SignedOut users, the SignInButton will handle the modal.
-    router.push('/aipersona'); 
+    if (user) {
+      router.push('/aipersona'); 
+    } else {
+      router.push('/login'); // Redirect to Supabase login page
+    }
   };
   
   return (
@@ -65,27 +69,25 @@ export function HeroSection() {
           Your friendly AI companion, always ready to listen and chat in Hinglish. Share your thoughts, get support, or just have a fun conversation.
         </p>
         
-        <SignedIn>
+        {isLoading ? (
+          <Button
+            size="lg"
+            disabled
+            className="font-semibold text-lg py-4 px-8 rounded-full shadow-lg"
+          >
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Loading...
+          </Button>
+        ) : (
           <Button
             size="lg"
             onClick={handleStartChatting}
             className="gradient-button font-semibold text-lg py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
           >
-            Start Chatting
+            {user ? 'Continue Chatting' : 'Start Chatting'}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
-        </SignedIn>
-        <SignedOut>
-          <SignInButton mode="modal">
-            <Button
-              size="lg"
-              className="gradient-button font-semibold text-lg py-4 px-8 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-            >
-              Start Chatting
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </SignInButton>
-        </SignedOut>
+        )}
         
         <div className="mt-12 flex justify-center space-x-4 text-4xl">
           <motion.span whileHover={{ scale: 1.5, rotate: 15 }} role="img" aria-label="Sad emoji">😞</motion.span>

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { ChatInterface } from '@/components/talkzi/ChatInterface';
 import { Button } from '@/components/ui/button';
-import { Menu as MenuIcon, Cog, LogIn, Home, Users, MessageSquareHeart } from 'lucide-react'; // LogOut removed
+import { Menu as MenuIcon, Cog, LogIn, Home, Users, MessageSquareHeart, LogOut } from 'lucide-react'; // Added LogOut
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 import Link from 'next/link';
 import { Logo } from '@/components/talkzi/Logo';
@@ -18,19 +18,34 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Separator } from '@/components/ui/separator';
-import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for Supabase
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 export default function ChatPage() {
-  const { isLoaded: isAuthLoading } = useUser(); // Clerk's hook
+  const { user, isLoading: isAuthLoading, signOut } = useAuth(); // Use Supabase auth
+  const router = useRouter(); // Initialize useRouter
   const [isClientReady, setIsClientReady] = useState(false);
 
   useEffect(() => {
     setIsClientReady(true);
   }, []);
 
-  if (!isAuthLoading || !isClientReady) {
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/'); // Redirect to home after sign out
+  };
+
+  if (isAuthLoading || !isClientReady) {
     return <LoadingSpinner message="Preparing chat..." />;
   }
+
+  // If auth is loaded and there's no user, redirect to login (unless it's a guest-allowed area)
+  // For chat, usually login is required.
+  if (!isAuthLoading && !user && isClientReady) {
+     router.push('/login');
+     return <LoadingSpinner message="Redirecting to login..." />;
+  }
+
 
   return (
     <div className="flex flex-col min-h-dvh bg-background">
@@ -79,20 +94,21 @@ export default function ChatPage() {
                 </nav>
                 <Separator />
                 <div className="p-4 mt-auto">
-                  <SignedIn>
+                  {user ? (
                     <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Profile</span>
-                        <UserButton afterSignOutUrl="/" />
+                        <span className="text-sm text-muted-foreground truncate max-w-[150px]">{user.email || 'Profile'}</span>
+                        <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out">
+                           <LogOut className="h-5 w-5 text-destructive" />
+                        </Button>
                     </div>
-                  </SignedIn>
-                  <SignedOut>
-                    <SignInButton mode="modal">
-                      <Button variant="default" className="w-full text-base py-3 gradient-button">
+                  ) : (
+                    <Button variant="default" className="w-full text-base py-3 gradient-button" asChild>
+                      <Link href="/login">
                         <LogIn className="mr-3 h-5 w-5" />
                         Login / Sign Up
-                      </Button>
-                    </SignInButton>
-                  </SignedOut>
+                      </Link>
+                    </Button>
+                  )}
                 </div>
                 <div className="px-6 py-3 text-center text-xs text-muted-foreground">
                    © {new Date().getFullYear()} Talkzii
@@ -108,29 +124,33 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center space-x-1 sm:space-x-2 w-auto justify-end">
-            <SignedIn>
+            {user ? (
+              <>
                 <Button variant="ghost" size="icon" asChild title="Change AI Persona" className="text-foreground">
                   <Link href="/aipersona">
                     <Cog className="h-5 w-5" />
                     <span className="sr-only">Change AI Persona</span>
                   </Link>
                 </Button>
-                 <UserButton afterSignOutUrl="/" />
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="outline" title="Login / Sign Up">
+                 <Button variant="ghost" size="icon" onClick={handleSignOut} title="Sign Out" className="text-foreground">
+                    <LogOut className="h-5 w-5" />
+                    <span className="sr-only">Sign Out</span>
+                 </Button>
+              </>
+            ) : (
+              <Button variant="outline" title="Login / Sign Up" asChild>
+                <Link href="/login">
                   <LogIn className="h-5 w-5 mr-2 sm:mr-0" />
                   <span className="hidden sm:inline ml-1">Login / Sign Up</span>
-                </Button>
-              </SignInButton>
-            </SignedOut>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
       <ComingSoonBanner />
       <main className="flex-grow overflow-hidden">
-        <ChatInterface />
+        {user ? <ChatInterface /> : <LoadingSpinner message="Please log in to chat." />}
       </main>
     </div>
   );

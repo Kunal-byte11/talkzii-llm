@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { GoogleAnalytics } from '@/components/talkzi/GoogleAnalytics';
-import { ClerkProvider } from '@clerk/nextjs';
+import { AuthProvider } from '@/contexts/AuthContext'; // Import Supabase AuthProvider
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -55,10 +55,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <AuthProvider> {/* Use Supabase AuthProvider */}
       <html lang="en" className={`${poppins.variable} ${plusJakartaSans.variable} ${notoSans.variable} ${geistMono.variable} ${hind.variable}`}>
         <head>
-          {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && (
+          {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && GA_MEASUREMENT_ID !== "" && (
             <>
               <Script
                 strategy="afterInteractive"
@@ -88,11 +88,11 @@ export default function RootLayout({
             <Toaster />
             <VercelAnalytics /> 
             <SpeedInsights />
-            {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && (
+            {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && GA_MEASUREMENT_ID !== "" && (
               <GoogleAnalytics GA_MEASUREMENT_ID={GA_MEASUREMENT_ID} />
             )}
         </body>
       </html>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

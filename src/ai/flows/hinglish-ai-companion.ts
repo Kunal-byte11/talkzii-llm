@@ -22,7 +22,7 @@ const HinglishAICompanionInputSchema = z.object({
     ])
     .optional()
     .default('default'),
-  userGender: z.enum(['male', 'female', 'prefer_not_to_say']).optional(), // Made optional
+  userGender: z.enum(['male', 'female', 'prefer_not_to_say', '']).optional(), // Updated to allow empty string for unknown/not set
   history: z.array(ChatTurnSchema).optional(),
 });
 export type HinglishAICompanionInput = z.infer<typeof HinglishAICompanionInputSchema>;
@@ -43,7 +43,7 @@ const PromptInputSchema = z.object({
   isCheekyLad: z.boolean(),
   isUserMale: z.boolean(),
   isUserFemale: z.boolean(),
-  isUserGenderKnown: z.boolean(), // New flag
+  isUserGenderKnown: z.boolean(),
   formattedHistory: z.string().optional(),
 });
 export type PromptInput = z.infer<typeof PromptInputSchema>;
@@ -194,7 +194,7 @@ export const hinglishAICompanion = ai.defineFlow(
       isCheekyLad: input.aiFriendType === 'cheeky_lad',
       isUserMale: input.userGender === 'male',
       isUserFemale: input.userGender === 'female',
-      isUserGenderKnown: input.userGender !== undefined && input.userGender !== 'prefer_not_to_say',
+      isUserGenderKnown: input.userGender !== undefined && input.userGender !== '' && input.userGender !== 'prefer_not_to_say',
       formattedHistory,
     };
 
@@ -212,6 +212,8 @@ export const hinglishAICompanion = ai.defineFlow(
       let displayMessage = `Oops! Connection mein thodi problem aa rahi hai. Please try again later. (Details: ${errorMessage.substring(0,100)})`;
       if (errorMessage.includes('FAILED_PRECONDITION') || errorMessage.includes('Generation blocked') || errorMessage.includes('blocked by safety settings')) {
         displayMessage = `Oops! Main is request ko abhi process nahi kar paa raha/rahi. Shayad kuch aur topic try karein? 🙏 (Details: Content generation issue)`;
+      } else if (errorMessage.includes('invalid API key') || errorMessage.includes('permission denied')) {
+         displayMessage = `Oops! AI server connection issue. Please check with support. (Details: Auth error)`;
       }
       
       return {
