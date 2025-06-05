@@ -6,25 +6,24 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/talkzi/Logo';
 import Link from 'next/link';
-import { LogOut, User as UserIcon, Home } from 'lucide-react';
+import { Home, User as UserIcon, LogIn } from 'lucide-react'; // LogOut removed, UserButton will handle
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { personaOptions } from '@/lib/personaOptions';
 import { ComingSoonBanner } from '@/components/talkzi/ComingSoonBanner';
+import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 
 const getAIFriendTypeKey = (userId?: string) => userId ? `talkzii_ai_friend_type_${userId}` : 'talkzii_ai_friend_type_guest';
 const getChatHistoryKey = (userId?: string) => userId ? `talkzii_chat_history_${userId}` : 'talkzii_chat_history_guest';
 
-
 export default function AIPersonaPage() {
   const router = useRouter();
-  const { user, signOut, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoaded } = useUser(); // Clerk's hook
   const [selectedPersona, setSelectedPersona] = useState<string>('default');
   const [isPersonaLoading, setIsPersonaLoading] = useState(true);
-  const [isRedirecting, setIsRedirecting] = useState(false); // Added for loading state before navigation
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const { toast } = useToast();
 
   const AI_FRIEND_TYPE_KEY = useMemo(() => {
@@ -32,11 +31,11 @@ export default function AIPersonaPage() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (isAuthLoading) return; 
+    if (!isLoaded) return; // Wait for Clerk to load user
 
     setIsPersonaLoading(true);
     if (!user) { 
-      setSelectedPersona('default');
+      setSelectedPersona('default'); // Guest default
     } else { 
       try {
         const savedPersona = localStorage.getItem(AI_FRIEND_TYPE_KEY);
@@ -47,11 +46,11 @@ export default function AIPersonaPage() {
       }
     }
     setIsPersonaLoading(false);
-  }, [isAuthLoading, AI_FRIEND_TYPE_KEY, user]);
+  }, [isLoaded, AI_FRIEND_TYPE_KEY, user]);
 
   const handleGuestPersonaConfirm = () => {
-    setSelectedPersona('default'); // Ensure visual feedback
-    setIsRedirecting(true); // Show spinner immediately
+    setSelectedPersona('default'); 
+    setIsRedirecting(true);
 
     setTimeout(() => {
       try {
@@ -63,10 +62,9 @@ export default function AIPersonaPage() {
         });
       } catch (error) {
         console.error("Error clearing guest localStorage", error);
-        // Optionally, handle error e.g., setIsRedirecting(false) if critical
       }
       router.push('/chat');
-    }, 50); // Small delay to allow UI update
+    }, 50);
   };
 
   const handlePersonaSelect = (personaValue: string) => {
@@ -80,14 +78,15 @@ export default function AIPersonaPage() {
           title: "Login to Use Persona",
           description: `Please log in to chat with ${personaLabel}. Guests chat with Talkzii (default).`,
         });
+        // Optionally, trigger Clerk sign-in modal here
+        // For now, user needs to click login button manually if they want to use non-default.
       }
       return; 
     }
 
-    setSelectedPersona(personaValue); // Update UI for card selection
-    setIsRedirecting(true); // Show spinner immediately
+    setSelectedPersona(personaValue);
+    setIsRedirecting(true); 
 
-    // Defer localStorage and navigation to allow spinner to render
     setTimeout(() => {
       try {
         const previousSavedPersona = localStorage.getItem(AI_FRIEND_TYPE_KEY) || 'default';
@@ -112,18 +111,15 @@ export default function AIPersonaPage() {
           description: "Could not save your persona preference or clear chat history.",
           variant: "destructive"
         });
-        // Optionally, setIsRedirecting(false) if this error should prevent navigation
-        // For now, we'll proceed to router.push even if localStorage fails to match previous behavior
       }
       router.push('/chat');
-    }, 50); // Small delay (e.g., 50ms) to ensure UI update
+    }, 50);
   };
 
-
-  if (isAuthLoading || isPersonaLoading || isRedirecting) {
+  if (!isLoaded || isPersonaLoading || isRedirecting) {
     const message = isRedirecting
       ? `Preparing chat with ${personaOptions.find(p => p.value === selectedPersona)?.label || 'Talkzii'}...`
-      : isAuthLoading
+      : !isLoaded
       ? "Verifying authentication..."
       : "Loading persona settings...";
     return <LoadingSpinner message={message} />;
@@ -145,29 +141,35 @@ export default function AIPersonaPage() {
                 <span className="sr-only">Home</span>
               </Link>
             </Button>
-            {user ? (
-              <Button
-                variant="link"
-                onClick={signOut}
-                className="text-muted-foreground text-base font-bold leading-normal tracking-[0.015em] shrink-0 p-0 h-auto hover:no-underline hover:text-primary"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
-                <span className="hidden md:inline">Logout</span>
-              </Button>
-            ) : (
-              <Button variant="link" onClick={() => router.push('/auth')} className="text-primary text-base font-bold">Login</Button>
-            )}
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="link" className="text-primary text-base font-bold">
+                  <LogIn className="h-5 w-5 mr-1 md:mr-1" />
+                  <span className="hidden md:inline">Login</span>
+                </Button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </header>
         <ComingSoonBanner />
-        {user && (
-            <div className="px-4 pt-3 text-left">
-                <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
-                    <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.email}
-                </p>
-            </div>
-        )}
+        <SignedIn>
+            {user && (
+              <div className="px-4 pt-3 text-left">
+                  <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
+                      <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.primaryEmailAddress?.emailAddress || user.username}
+                  </p>
+                  {user.publicMetadata.gender && (
+                     <p className="text-xs text-muted-foreground mb-1">Gender for AI: {String(user.publicMetadata.gender)}</p>
+                  )}
+                   {!user.publicMetadata.gender && (
+                     <p className="text-xs text-muted-foreground mb-1">Tip: You can set your gender in your profile (via Clerk dashboard or future profile page) for a more personalized chat!</p>
+                  )}
+              </div>
+            )}
+        </SignedIn>
         
         <h2 className="text-foreground text-[22px] font-bold leading-tight tracking-[-0.015em] px-4 pb-3 pt-5 text-left">
           Choose your Talkzii
@@ -202,7 +204,7 @@ export default function AIPersonaPage() {
           ))}
         </div>
         
-        {!user && (
+        <SignedOut>
           <div className="px-4 py-6 mt-4">
             <Button
               onClick={handleGuestPersonaConfirm}
@@ -212,7 +214,7 @@ export default function AIPersonaPage() {
               Chat with Talkzii (Default)
             </Button>
           </div>
-        )}
+        </SignedOut>
       </div>
 
       <footer className="py-6 border-t border-border">

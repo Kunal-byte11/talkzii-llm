@@ -4,10 +4,8 @@
 import { useEffect, useState } from 'react';
 import { ChatInterface } from '@/components/talkzi/ChatInterface';
 import { Button } from '@/components/ui/button';
-import { Menu as MenuIcon, Cog, LogOut, LogIn, Home, Users, MessageSquareHeart } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { Menu as MenuIcon, Cog, LogIn, Home, Users, MessageSquareHeart } from 'lucide-react'; // LogOut removed
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/talkzi/Logo';
 import { ComingSoonBanner } from '@/components/talkzi/ComingSoonBanner';
@@ -20,18 +18,17 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
+import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 
 export default function ChatPage() {
-  const { user, signOut, isLoading: isAuthLoading } = useAuth();
+  const { isLoaded: isAuthLoading } = useUser(); // Clerk's hook
   const [isClientReady, setIsClientReady] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     setIsClientReady(true);
   }, []);
 
-  if (isAuthLoading || !isClientReady) {
+  if (!isAuthLoading || !isClientReady) {
     return <LoadingSpinner message="Preparing chat..." />;
   }
 
@@ -82,23 +79,20 @@ export default function ChatPage() {
                 </nav>
                 <Separator />
                 <div className="p-4 mt-auto">
-                  {user ? (
-                    <SheetClose asChild>
-                      <Button variant="outline" onClick={signOut} className="w-full text-base py-3">
-                        <LogOut className="mr-3 h-5 w-5" />
-                        Logout
+                  <SignedIn>
+                    <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Profile</span>
+                        <UserButton afterSignOutUrl="/" />
+                    </div>
+                  </SignedIn>
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <Button variant="default" className="w-full text-base py-3 gradient-button">
+                        <LogIn className="mr-3 h-5 w-5" />
+                        Login / Sign Up
                       </Button>
-                    </SheetClose>
-                  ) : (
-                    <SheetClose asChild>
-                      <Link href="/auth" passHref>
-                        <Button variant="default" className="w-full text-base py-3 gradient-button">
-                          <LogIn className="mr-3 h-5 w-5" />
-                          Login / Sign Up
-                        </Button>
-                      </Link>
-                    </SheetClose>
-                  )}
+                    </SignInButton>
+                  </SignedOut>
                 </div>
                 <div className="px-6 py-3 text-center text-xs text-muted-foreground">
                    © {new Date().getFullYear()} Talkzii
@@ -114,26 +108,23 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center space-x-1 sm:space-x-2 w-auto justify-end">
-            {user && (
-              <>
+            <SignedIn>
                 <Button variant="ghost" size="icon" asChild title="Change AI Persona" className="text-foreground">
                   <Link href="/aipersona">
                     <Cog className="h-5 w-5" />
                     <span className="sr-only">Change AI Persona</span>
                   </Link>
                 </Button>
-                 <Button variant="ghost" size="icon" onClick={signOut} title="Logout" className="text-foreground">
-                  <LogOut className="h-5 w-5" />
-                  <span className="sr-only">Logout</span>
+                 <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="outline" title="Login / Sign Up">
+                  <LogIn className="h-5 w-5 mr-2 sm:mr-0" />
+                  <span className="hidden sm:inline ml-1">Login / Sign Up</span>
                 </Button>
-              </>
-            )}
-            {!user && (
-              <Button variant="outline" onClick={() => router.push('/auth')} title="Login / Sign Up">
-                <LogIn className="h-5 w-5 mr-2 sm:mr-0" />
-                <span className="hidden sm:inline ml-1">Login / Sign Up</span>
-              </Button>
-            )}
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
       </header>

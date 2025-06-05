@@ -1,13 +1,13 @@
 
 import type { Metadata } from 'next';
-import Script from 'next/script'; // Import Script
+import Script from 'next/script';
 import { Plus_Jakarta_Sans, Noto_Sans, Geist_Mono, Poppins, Hind } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { Analytics as VercelAnalytics } from "@vercel/analytics/react"; // Renamed to avoid conflict
+import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { AuthProvider } from '@/contexts/AuthContext';
-import { GoogleAnalytics } from '@/components/talkzi/GoogleAnalytics'; // Import the new component
+import { GoogleAnalytics } from '@/components/talkzi/GoogleAnalytics';
+import { ClerkProvider } from '@clerk/nextjs';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -32,13 +32,12 @@ const poppins = Poppins({
   weight: ['400', '500', '600', '700'],
 });
 
-const hind = Hind({ // Serif-style font for Wise Dadi
+const hind = Hind({
   subsets: ['latin'],
   variable: '--font-hind',
   weight: ['400', '500', '600', '700'],
 });
 
-// Use the provided GA Measurement ID directly or fallback to environment variable / placeholder
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-GC1HKJBY12";
 
 export const metadata: Metadata = {
@@ -56,46 +55,44 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${poppins.variable} ${plusJakartaSans.variable} ${notoSans.variable} ${geistMono.variable} ${hind.variable}`}>
-      <head>
-        {/* Google Analytics Scripts - Only add if GA_MEASUREMENT_ID is set and not the placeholder */}
-        {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && (
-          <>
-            <Script
-              strategy="afterInteractive"
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-            />
-            <Script
-              id="google-analytics"
-              strategy="afterInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                  window.dataLayer = window.dataLayer || [];
-                  function gtag(){dataLayer.push(arguments);}
-                  gtag('js', new Date());
-                  gtag('config', '${GA_MEASUREMENT_ID}', {
-                    page_path: window.location.pathname,
-                  });
-                `,
-              }}
-            />
-          </>
-        )}
-      </head>
-      <body className={`antialiased flex flex-col min-h-screen bg-background text-foreground font-poppins`}>
-        <AuthProvider>
-          <div className="flex-grow">
-            {children}
-          </div>
-          <Toaster />
-          <VercelAnalytics /> 
-          <SpeedInsights />
-          {/* Render GoogleAnalytics component for page view tracking */}
+    <ClerkProvider>
+      <html lang="en" className={`${poppins.variable} ${plusJakartaSans.variable} ${notoSans.variable} ${geistMono.variable} ${hind.variable}`}>
+        <head>
           {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && (
-            <GoogleAnalytics GA_MEASUREMENT_ID={GA_MEASUREMENT_ID} />
+            <>
+              <Script
+                strategy="afterInteractive"
+                src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              />
+              <Script
+                id="google-analytics"
+                strategy="afterInteractive"
+                dangerouslySetInnerHTML={{
+                  __html: `
+                    window.dataLayer = window.dataLayer || [];
+                    function gtag(){dataLayer.push(arguments);}
+                    gtag('js', new Date());
+                    gtag('config', '${GA_MEASUREMENT_ID}', {
+                      page_path: window.location.pathname,
+                    });
+                  `,
+                }}
+              />
+            </>
           )}
-        </AuthProvider>
-      </body>
-    </html>
+        </head>
+        <body className={`antialiased flex flex-col min-h-screen bg-background text-foreground font-poppins`}>
+            <div className="flex-grow">
+              {children}
+            </div>
+            <Toaster />
+            <VercelAnalytics /> 
+            <SpeedInsights />
+            {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && (
+              <GoogleAnalytics GA_MEASUREMENT_ID={GA_MEASUREMENT_ID} />
+            )}
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

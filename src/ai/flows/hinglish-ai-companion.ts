@@ -22,7 +22,7 @@ const HinglishAICompanionInputSchema = z.object({
     ])
     .optional()
     .default('default'),
-  userGender: z.enum(['male', 'female', 'prefer_not_to_say']).optional(),
+  userGender: z.enum(['male', 'female', 'prefer_not_to_say']).optional(), // Made optional
   history: z.array(ChatTurnSchema).optional(),
 });
 export type HinglishAICompanionInput = z.infer<typeof HinglishAICompanionInputSchema>;
@@ -43,6 +43,7 @@ const PromptInputSchema = z.object({
   isCheekyLad: z.boolean(),
   isUserMale: z.boolean(),
   isUserFemale: z.boolean(),
+  isUserGenderKnown: z.boolean(), // New flag
   formattedHistory: z.string().optional(),
 });
 export type PromptInput = z.infer<typeof PromptInputSchema>;
@@ -68,6 +69,9 @@ const hinglishCompanionPrompt = ai.definePrompt({
 You are Talkzii — a warm, caring AI friend for Gen Z Indians. You communicate in natural, heartfelt Hinglish, using relatable desi slang and culturally aware expressions. Use emojis and casual slang to make your responses feel real, comforting, and uplifting. Your primary goal is emotional support.
 
 Based on the user's selected friend type and their gender (if known), you take on a specific emotional support personality. Always maintain a safe, caring, and friendly tone within that persona.
+{{#unless isUserGenderKnown}}
+User's gender is not specified. Use gender-neutral terms or be mindful of this when personalizing responses.
+{{/unless}}
 
 CRISIS RESPONSE RULES:
 - If the user explicitly states intent or a plan for self-harm, and you are in the "Default Talkzii" persona, respond with exactly:
@@ -190,6 +194,7 @@ export const hinglishAICompanion = ai.defineFlow(
       isCheekyLad: input.aiFriendType === 'cheeky_lad',
       isUserMale: input.userGender === 'male',
       isUserFemale: input.userGender === 'female',
+      isUserGenderKnown: input.userGender !== undefined && input.userGender !== 'prefer_not_to_say',
       formattedHistory,
     };
 
@@ -215,4 +220,3 @@ export const hinglishAICompanion = ai.defineFlow(
     }
   }
 );
-

@@ -13,11 +13,11 @@ import { hinglishAICompanion, type HinglishAICompanionInput } from '@/ai/flows/h
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquareText, ChevronDown, Brain, Trash2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/client';
 import { personaOptions, getDefaultPersonaImage, getPersonaTheme, type PersonaTheme } from '@/lib/personaOptions';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@clerk/nextjs'; // Clerk hook
 
 // Enhanced memory system
 interface ChatMemory {
@@ -26,11 +26,12 @@ interface ChatMemory {
     preferences?: string[];
     interests?: string[];
     personalInfo?: Record<string, string>;
+    // Gender is now read from Clerk user.publicMetadata, not stored here directly
   };
   conversationContext: {
     recentTopics: string[];
     lastMentionedEntities: string[];
-    conversationTone: 'casual' | 'formal' | 'friendly' | 'professional';
+    conversationTone: 'casual' | 'friendly' | 'professional'; // Added 'professional'
   };
   chatHistory: {
     messageId: string;
@@ -50,7 +51,7 @@ const GUEST_MESSAGE_LIMIT = 10;
 const LOGGED_IN_FREE_TIER_MESSAGE_LIMIT = 20;
 const MAX_MEMORY_MESSAGES = 20; 
 const MAX_CONTEXT_MESSAGES = 5; 
-const MEMORY_WARNING_THRESHOLD = 18; // Show warning when memory is 90% full (18/20)
+const MEMORY_WARNING_THRESHOLD = 18;
 
 
 // Helper functions for memory management
@@ -66,8 +67,7 @@ const extractUserInfo = (message: string): Partial<ChatMemory['userProfile']> =>
   for (const pattern of namePatterns) {
     const match = message.match(pattern);
     if (match && match[1]) {
-      info.name = match[1].trim().split(' ')[0]; 
-      info.name = info.name.charAt(0).toUpperCase() + info.name.slice(1).toLowerCase();
+      info.name = match[1].trim().split(' ').map(namePart => namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase()).join(' ');
       break;
     }
   }
@@ -102,13 +102,17 @@ const extractUserInfo = (message: string): Partial<ChatMemory['userProfile']> =>
   return info;
 };
 
-const buildContextForAI = (memory: ChatMemory, currentMessage: string): string => {
+const buildContextForAI = (memory: ChatMemory, currentMessage: string, clerkUserGender?: string): string => {
   let contextParts: string[] = [];
 
   if (memory.userProfile.name) {
     contextParts.push(`User's name is ${memory.userProfile.name}.`);
   }
   
+  if (clerkUserGender) {
+    contextParts.push(`User's gender is ${clerkUserGender}.`);
+  }
+
   if (memory.userProfile.personalInfo && Object.keys(memory.userProfile.personalInfo).length > 0) {
     const info = Object.entries(memory.userProfile.personalInfo)
       .map(([key, value]) => `${key} is ${value}`)
@@ -141,7 +145,7 @@ const buildContextForAI = (memory: ChatMemory, currentMessage: string): string =
 
 async function saveMessageFeedbackToSupabase(feedbackData: {
   message_id: string;
-  user_id: string;
+  user_id: string; // Clerk user ID
   ai_response_text: string;
   user_prompt_text: string;
   feedback: 'liked' | 'disliked';
@@ -158,7 +162,7 @@ async function saveMessageFeedbackToSupabase(feedbackData: {
 }
 
 export function ChatInterface() {
-  const { user, profile, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoaded: isAuthLoading } = useUser(); // Clerk hook
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatMemory, setChatMemory] = useState<ChatMemory>({
     userProfile: {},
@@ -193,11 +197,9 @@ export function ChatInterface() {
     memoryWarning: getMemoryWarningKey(user?.id),
   });
 
-  // Memory management functions
   const updateChatMemory = useCallback((userMessageText: string, aiResponseText: string, messageId: string) => {
     setChatMemory(prevMemory => {
       const newMemory = JSON.parse(JSON.stringify(prevMemory)); 
-      
       const extractedInfo = extractUserInfo(userMessageText);
       let infoLearned = false;
 
@@ -288,7 +290,6 @@ export function ChatInterface() {
       if (newMessagesAdded) setLastMessageCount(messages.length);
       return () => clearTimeout(timeoutId);
     }
-    
     if (!newMessagesAdded) setLastMessageCount(messages.length);
   }, [messages, isNearBottom, lastMessageCount, scrollToBottom]);
 
@@ -301,7 +302,7 @@ export function ChatInterface() {
       if (e.key === 'Escape' && showSubscriptionModal) setShowSubscriptionModal(false);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'end') { e.preventDefault(); scrollToBottom(true); }
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'delete' || e.key === 'Backspace')) { 
-         if (e.shiftKey) { // Only trigger clear memory if Shift is also pressed
+         if (e.shiftKey) { 
             e.preventDefault(); 
             clearChatMemory(); 
          }
@@ -385,10 +386,7 @@ export function ChatInterface() {
       id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       text, sender, timestamp: Date.now(), feedback: null, ...options,
     };
-    setMessages(prev => {
-      const newMsgs = [...prev, newMessage];
-      return newMsgs;
-    });
+    setMessages(prev => [...prev, newMessage]);
     return newMessage;
   };
 
@@ -407,22 +405,31 @@ export function ChatInterface() {
       return;
     }
 
-    const userMessageObject = addMessage(userInput, 'user');
+    addMessage(userInput, 'user');
     incrementChatCount();
     setIsAiLoading(true);
     
     try {
       const crisisResponse = await detectCrisis({ message: userInput });
       if (crisisResponse.isCrisis && crisisResponse.response) {
-        const systemMessage = addMessage(crisisResponse.response, 'system', { isCrisis: true });
+        addMessage(crisisResponse.response, 'system', { isCrisis: true });
         setIsAiLoading(false);
         return;
       }
-
-      const messageForAI = buildContextForAI(chatMemory, userInput);
+      
+      // Get gender from Clerk user object's publicMetadata
+      const clerkUserGender = user?.publicMetadata?.gender as string | undefined;
+      const messageForAI = buildContextForAI(chatMemory, userInput, clerkUserGender);
       
       const companionInput: HinglishAICompanionInput = { message: messageForAI };
-      if (user && profile?.gender) companionInput.userGender = profile.gender;
+
+      // Pass gender to AI if available from Clerk
+      if (clerkUserGender) {
+         if (clerkUserGender === 'male' || clerkUserGender === 'female' || clerkUserGender === 'prefer_not_to_say') {
+            companionInput.userGender = clerkUserGender as 'male' | 'female' | 'prefer_not_to_say';
+         }
+      }
+      
       const personaTypeForAI = currentAiFriendType as HinglishAICompanionInput['aiFriendType'];
       if (personaTypeForAI && personaTypeForAI !== 'default') companionInput.aiFriendType = personaTypeForAI;
       
@@ -439,9 +446,8 @@ export function ChatInterface() {
         });
         updateChatMemory(userInput, aiLlmResponse.response, aiMessageObject.id);
 
-        // Check and show memory full warning
         if (!hasShownMemoryFullWarning && chatMemory.chatHistory.length >= MEMORY_WARNING_THRESHOLD) {
-          setTimeout(() => { // Show after AI's main response
+          setTimeout(() => {
              addMessage("Heads up! My short-term memory for our chat is getting full. I'll remember our recent chats, but might start forgetting the very oldest details to make space. 😊", 'system');
           }, 100);
           setHasShownMemoryFullWarning(true);
@@ -460,7 +466,7 @@ export function ChatInterface() {
     } finally {
       setIsAiLoading(false);
     }
-  }, [user, profile, toast, currentAiFriendType, chatCount, incrementChatCount, isChatCountLoading, chatMemory, updateChatMemory, hasShownMemoryFullWarning, localStorageKeys.memoryWarning]); 
+  }, [user, toast, currentAiFriendType, chatCount, incrementChatCount, isChatCountLoading, chatMemory, updateChatMemory, hasShownMemoryFullWarning, localStorageKeys.memoryWarning]); 
 
   const handleFeedback = useCallback(async (messageId: string, feedbackType: 'liked' | 'disliked') => {
     if (!user) {
@@ -509,6 +515,8 @@ export function ChatInterface() {
                        (chatMemory.userProfile.personalInfo && Object.keys(chatMemory.userProfile.personalInfo).length > 0) ||
                        (chatMemory.chatHistory && chatMemory.chatHistory.length > 0);
 
+  const clerkUserGenderForDisplay = user?.publicMetadata?.gender as string | undefined;
+
   return (
     <div className={cn("flex flex-col h-full bg-background relative", activeFontClass)}>
       {showMemoryIndicator && (
@@ -529,8 +537,11 @@ export function ChatInterface() {
               <p className="text-sm">
                 Chatting with: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{personaDisplayName}</span>
               </p>
-              {user && profile?.gender && (
-                <p className="text-sm">Gender for AI: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{profile.gender.replace(/_/g, ' ')}</span></p>
+              {user && clerkUserGenderForDisplay && (
+                <p className="text-sm">Gender for AI: <span className="font-semibold capitalize" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{clerkUserGenderForDisplay.replace(/_/g, ' ')}</span></p>
+              )}
+              {user && !clerkUserGenderForDisplay && (
+                <p className="text-xs text-muted-foreground">Set your gender in your profile for a more tailored chat experience!</p>
               )}
               <p className="text-sm">
                 Messages remaining: <span className="font-semibold" style={{color: currentPersonaTheme?.accentColor || 'hsl(var(--primary))'}}>{messagesRemaining} / {messageLimit}</span>
@@ -605,5 +616,3 @@ export function ChatInterface() {
     </div>
   );
 }
-
-    

@@ -5,9 +5,9 @@ import React, { useState } from 'react';
 import { Logo } from '@/components/talkzi/Logo';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { SignedIn, SignedOut, UserButton, SignInButton } from "@clerk/nextjs";
 
 import { MenuItem, MenuContainer } from "@/components/ui/fluid-menu";
 import {
@@ -18,7 +18,8 @@ import {
   Mail as MailIcon,
   Info,
   LogIn,
-  Loader2
+  Loader2,
+  MessageSquarePlus
 } from 'lucide-react';
 
 
@@ -31,19 +32,21 @@ const navLinks = [
 
 export function NewLandingHeader() {
   const router = useRouter();
-  const { user } = useAuth();
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const handleGetStarted = (isMobile = false) => {
+  const handleGetStarted = () => {
     setIsNavigating(true);
-    if (user) {
-      router.push('/aipersona');
-    } else {
-      router.push('/auth');
-    }
-    // setIsNavigating(false) is not set here as the component will likely unmount
-    // or re-render upon navigation, resetting the state.
+    // Clerk's <SignedIn> and <SignedOut> will handle the display.
+    // The NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL will handle redirection after sign-in.
+    // If user is already signed in, this button might take them to /aipersona
+    router.push('/aipersona'); 
   };
+  
+  const handleLetsChatMobile = () => {
+    setIsNavigating(true);
+    router.push('/aipersona');
+  };
+
 
   const handleNavLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     const id = href.substring(1);
@@ -79,49 +82,67 @@ export function NewLandingHeader() {
               {link.label}
             </a>
           ))}
-          <Button
-            onClick={() => handleGetStarted(false)}
-            size="sm"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
-            disabled={isNavigating}
-          >
-            {isNavigating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Get Started"
-            )}
-          </Button>
+          <SignedIn>
+            <Button
+              onClick={handleGetStarted}
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
+              disabled={isNavigating}
+            >
+              {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Go to App
+            </Button>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <Button
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-4 py-2"
+                disabled={isNavigating}
+              >
+                {isNavigating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Get Started
+              </Button>
+            </SignInButton>
+          </SignedOut>
         </nav>
 
         {/* Mobile Navigation - Fluid Menu */}
         <div className="md:hidden flex items-center gap-2">
-          <Button
-            onClick={() => handleGetStarted(true)}
-            size="sm"
-            variant="outline"
-            className="rounded-full px-3 py-1.5 text-xs border-primary text-primary hover:bg-primary/5"
-            disabled={isNavigating}
-          >
-            {isNavigating ? (
-               <>
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                Wait..
-              </>
-            ) : "Let's Chat"}
-          </Button>
-          <MenuContainer className="relative"> {/* data-expanded is handled internally by MenuContainer */}
+          <SignedIn>
+             <Button
+                onClick={handleLetsChatMobile}
+                size="sm"
+                className="rounded-full px-3 py-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={isNavigating}
+              >
+                {isNavigating ? (<Loader2 className="mr-1 h-3 w-3 animate-spin" />) : (<MessageSquarePlus className="mr-1 h-3 w-3" />)}
+                Let's Chat
+              </Button>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+          <SignedOut>
+             <SignInButton mode="modal">
+                <Button
+                  size="sm"
+                  className="rounded-full px-3 py-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isNavigating}
+                >
+                  {isNavigating ? (<Loader2 className="mr-1 h-3 w-3 animate-spin" />) : (<LogIn className="mr-1 h-3 w-3" />)}
+                   Let's Chat
+                </Button>
+              </SignInButton>
+          </SignedOut>
+
+          <MenuContainer className="relative">
             <MenuItem
               isToggle
               icon={
                 <div className="relative w-5 h-5 text-foreground">
-                  {/* MenuIcon appears when data-expanded is false or not present */}
                   <div className="absolute inset-0 transition-all duration-300 ease-in-out origin-center opacity-100 scale-100 rotate-0 [div[data-expanded=true]_&]:opacity-0 [div[data-expanded=true]_&]:scale-0 [div[data-expanded=true]_&]:-rotate-180">
                     <MenuIcon size={20} strokeWidth={2} />
                   </div>
-                  {/* X icon appears when data-expanded is true */}
                   <div className="absolute inset-0 transition-all duration-300 ease-in-out origin-center opacity-0 scale-0 rotate-180 [div[data-expanded=true]_&]:opacity-100 [div[data-expanded=true]_&]:scale-100 [div[data-expanded=true]_&]:rotate-0">
                     <X size={20} strokeWidth={2} />
                   </div>
@@ -135,9 +156,6 @@ export function NewLandingHeader() {
                 icon={React.cloneElement(link.icon, {size: 16, strokeWidth: 2})}
                 href={link.href}
                 onClick={(e) => {
-                  // This onClick on MenuItem is for closing the menu and then handling navigation
-                  // The actual smooth scroll is done by handleNavLinkClick
-                  // The MenuContainer's cloneElement handles closing the menu
                   handleNavLinkClick(e as React.MouseEvent<HTMLAnchorElement>, link.href);
                 }}
               >

@@ -1,26 +1,26 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/talkzi/Logo';
 import Link from 'next/link';
-import { LogOut, User as UserIcon, Home, LogIn, MessageSquareHeart } from 'lucide-react';
+import { Home, User as UserIcon, LogIn, MessageSquareHeart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { personaOptions } from '@/lib/personaOptions';
 import { ComingSoonBanner } from '@/components/talkzi/ComingSoonBanner';
+import { useUser, UserButton, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 
 const getAIFriendTypeKey = (userId?: string) => userId ? `talkzii_ai_friend_type_${userId}` : 'talkzii_ai_friend_type_guest';
 const getChatHistoryKey = (userId?: string) => userId ? `talkzii_chat_history_${userId}` : 'talkzii_chat_history_guest';
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { user, signOut, isLoading: isAuthLoading } = useAuth();
+  const { user, isLoaded: isAuthLoading } = useUser(); // Clerk hook
   const { toast } = useToast();
   const [isClientReady, setIsClientReady] = useState(false);
 
@@ -50,6 +50,7 @@ export default function ExplorePage() {
           title: "Login to Chat",
           description: `Please log in to chat with ${personaLabel}. Guests can only chat with Talkzii (default).`,
         });
+        // Optionally trigger Clerk sign-in modal
       }
       return;
     }
@@ -108,32 +109,29 @@ export default function ExplorePage() {
                 <span className="sr-only">Select AI Persona</span>
               </Link>
             </Button>
-            {user ? (
-              <Button
-                variant="link"
-                onClick={signOut}
-                className="text-muted-foreground text-base font-bold leading-normal tracking-[0.015em] shrink-0 p-0 h-auto hover:no-underline hover:text-primary"
-                title="Logout"
-              >
-                <LogOut className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
-                <span className="hidden md:inline">Logout</span>
-              </Button>
-            ) : (
-              <Button variant="link" onClick={() => router.push('/auth')} className="text-primary text-base font-bold hover:no-underline">
-                 <LogIn className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
-                 <span className="hidden md:inline">Login</span>
-              </Button>
-            )}
+            <SignedIn>
+              <UserButton afterSignOutUrl="/" />
+            </SignedIn>
+            <SignedOut>
+               <SignInButton mode="modal">
+                <Button variant="link" className="text-primary text-base font-bold hover:no-underline">
+                  <LogIn className="h-5 w-5 mr-1 sm:mr-0 md:mr-1" />
+                  <span className="hidden md:inline">Login</span>
+                </Button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </header>
         <ComingSoonBanner />
-        {user && (
+        <SignedIn>
+          {user && (
             <div className="px-4 pt-3 text-left">
                 <p className="text-sm text-muted-foreground mb-1 flex items-center justify-start">
-                    <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.email}
+                    <UserIcon className="h-4 w-4 mr-1 text-primary" /> Logged in as: {user.primaryEmailAddress?.emailAddress || user.username}
                 </p>
             </div>
-        )}
+          )}
+        </SignedIn>
         
         <section className="py-8 md:py-12">
           <div className="container mx-auto px-4">
