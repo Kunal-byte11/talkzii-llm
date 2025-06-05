@@ -1,4 +1,3 @@
-
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -18,6 +17,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Add optimizations for faster routing
+  experimental: {
+    optimizeCss: true,
+    scrollRestoration: true,
+  },
+  // Optimize page loading
+  pageExtensions: ['tsx', 'ts'],
+  poweredByHeader: false,
+  compress: true,
+  reactStrictMode: true,
+  swcMinify: true,
+  // Optimize file watching
   watchOptions: {
     // Files and directories to ignore for the Next.js file watcher.
     // This helps prevent unnecessary server restarts or build loops
