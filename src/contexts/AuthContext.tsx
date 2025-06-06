@@ -57,7 +57,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               .from('profiles').select('*').eq('id', currentAuthUser.id).single();
             
             if (profileFetchError) {
-              // PGRST116 means no rows found (profile doesn't exist yet for a new user), which is not an operational error.
               if (profileFetchError.code !== 'PGRST116') { 
                 if (profileFetchError.message && (profileFetchError.message.includes("Failed to fetch") || profileFetchError.message.includes("NetworkError"))) {
                   console.warn(
@@ -75,7 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       } catch (e: unknown) {
-        const error = e as Error; // Type assertion
+        const error = e as Error; 
         console.error("Critical error during initial data fetch (AuthProvider):", error.message || String(error));
         setSession(null); setUser(null); setProfile(null);
       }
@@ -90,17 +89,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentEventSession: Session | null) => {
         try {
+          // Accurately capture the user state *before* it's updated by setSession/setUser below.
+          // This requires `user` not to be in the dependency array of this effect.
+          const previousAuthUser = user; 
           const newAuthUser = currentEventSession?.user ?? null;
-          const previousUser = user; // Capture previous user state *before* updating
-
-          const isActualUserIdentityChange = newAuthUser?.id !== previousUser?.id;
+          
+          const isActualUserIdentityChange = newAuthUser?.id !== previousAuthUser?.id;
           const isLoginEvent = event === 'SIGNED_IN' && isActualUserIdentityChange;
           const isLogoutEvent = event === 'SIGNED_OUT';
 
-          // Only set global loading states for significant user identity changes
           if (isLoginEvent || isLogoutEvent) {
             setIsAuthLoadingInternal(true);
-            setIsProfileLoadingInternal(true); // Profile will need re-fetch or clearing
+            setIsProfileLoadingInternal(true); 
           }
           
           setSession(currentEventSession);
@@ -108,35 +108,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (isLogoutEvent) {
             console.log('User signed out. Clearing profile and user-specific localStorage.');
-            if (previousUser?.id) {
+            if (previousAuthUser?.id) { // Use the captured previousAuthUser
               try {
-                localStorage.removeItem(`talkzii_chat_history_${previousUser.id}`);
-                localStorage.removeItem(`talkzii_ai_friend_type_${previousUser.id}`);
-                localStorage.removeItem(`talkzii_chat_memory_${previousUser.id}`);
-                localStorage.removeItem(`talkzii_memory_warning_shown_${previousUser.id}`);
+                localStorage.removeItem(`talkzii_chat_history_${previousAuthUser.id}`);
+                localStorage.removeItem(`talkzii_ai_friend_type_${previousAuthUser.id}`);
+                localStorage.removeItem(`talkzii_chat_memory_${previousAuthUser.id}`);
+                localStorage.removeItem(`talkzii_memory_warning_shown_${previousAuthUser.id}`);
               } catch (e) {
                 console.error("Error clearing user-specific localStorage on sign out", e);
               }
             }
             setProfile(null);
-            // Ensure loading states are reset after logout processing
             setIsAuthLoadingInternal(false); 
             setIsProfileLoadingInternal(false);
-            return; // Early exit after logout
+            return; 
           }
 
           if (newAuthUser) {
-            // Fetch profile if:
-            // 1. User identity actually changed.
-            // 2. It's a USER_UPDATED event for the same user (their profile data might have changed server-side).
-            // 3. Profile is currently null for this user (e.g., initial load after session restore).
-            // 4. Current profile ID doesn't match the new user ID (sanity check).
             if (isActualUserIdentityChange || 
-                (event === 'USER_UPDATED' && newAuthUser.id === previousUser?.id) || 
-                !profile || 
-                profile.id !== newAuthUser.id) {
+                (event === 'USER_UPDATED' && newAuthUser.id === previousAuthUser?.id) || 
+                !profile || // Profile is null, needs fetch for current user
+                (profile && profile.id !== newAuthUser.id) // Profile belongs to a different user
+                ) {
               
-              if (!isProfileLoadingInternal) setIsProfileLoadingInternal(true); // Set loading only if not already loading
+              if (!isProfileLoadingInternal) setIsProfileLoadingInternal(true); 
 
               const { data: userProfileData, error: profileError } = await supabase
                 .from('profiles')
@@ -155,17 +150,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               setIsProfileLoadingInternal(false); 
             }
           } else { 
-            setProfile(null); // No user, so no profile
-            if (isProfileLoadingInternal) setIsProfileLoadingInternal(false); // Ensure profile loading is false if user becomes null
+            setProfile(null); 
+            if (isProfileLoadingInternal) setIsProfileLoadingInternal(false); 
           }
 
-          // Reset auth loading state if it was a significant change that completed
-          if (isLoginEvent || isLogoutEvent) { // isLogoutEvent handled by early return, but good for clarity
+          if (isLoginEvent) { 
             setIsAuthLoadingInternal(false);
           }
-        } catch (error) { // Catch any unexpected errors within the handler
+        } catch (error) { 
           console.error("Critical error in onAuthStateChange handler:", error instanceof Error ? error.message : String(error));
-          // Reset states to a safe default on critical error
           setSession(null); setUser(null); setProfile(null);
           setIsAuthLoadingInternal(false);
           setIsProfileLoadingInternal(false);
@@ -176,22 +169,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]); // Rerun if `user` state changes, to correctly capture `previousUser`
+  }, []); // Ensures this effect runs only once on mount and cleans up on unmount. `user` and `profile` state used inside onAuthStateChange callback will be from the closure of that callback.
 
   // Effect for handling navigation based on auth state
   useEffect(() => {
-    // Wait for initial auth check to complete before navigating
     if (isAuthLoadingInternal) { 
       return; 
     }
-    const isOnAuthPage = pathname === '/auth';
-    if (session) { // If there's a session (user is logged in)
-      if (isOnAuthPage) {
-        router.push('/aipersona'); // Redirect away from /auth page
+    const isOnLoginPage = pathname === '/login';
+    const isOnSignupPage = pathname === '/signup';
+
+    if (session) { // User is logged in
+      if (isOnLoginPage || isOnSignupPage) {
+        router.replace('/aipersona'); 
       }
     }
-    // No explicit redirect for logged-out users here, as pages should handle their own auth requirements.
   }, [session, pathname, router, isAuthLoadingInternal]);
 
   const signOut = async () => {
@@ -199,10 +191,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (error) {
       console.error("Error signing out: ", error.message || String(error));
     }
-    // onAuthStateChange will handle clearing user, session, profile, and localStorage
   };
 
-  // isLoading is true if either core auth state is loading OR if there's a user and their profile is still loading
   const finalIsLoading = isAuthLoadingInternal || (user ? isProfileLoadingInternal : false);
 
   const contextValue = useMemo(() => ({
