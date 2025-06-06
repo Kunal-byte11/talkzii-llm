@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -12,14 +12,24 @@ import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { useAuth } from '@/contexts/AuthContext';
+import { LoadingSpinner } from '@/components/talkzi/LoadingSpinner';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { session, isLoading: isAuthLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // If auth is not loading and user is already logged in, redirect them
+    if (!isAuthLoading && session) {
+      router.replace('/aipersona');
+    }
+  }, [session, isAuthLoading, router]);
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,9 +55,15 @@ export default function LoginPage() {
         title: "Login Successful!",
         description: "Welcome back!",
       });
-      // The AuthProvider's onAuthStateChange will handle redirecting to /aipersona
+      // AuthProvider's onAuthStateChange will handle redirecting to /aipersona
+      // or the effect above will also trigger a redirect.
     }
   };
+
+  // If auth state is loading, or if user is already logged in (and not loading), show spinner
+  if (isAuthLoading || (!isAuthLoading && session)) {
+    return <LoadingSpinner message="Checking authentication..." />;
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
@@ -109,4 +125,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

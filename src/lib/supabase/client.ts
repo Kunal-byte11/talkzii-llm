@@ -1,14 +1,12 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Note: While Clerk is now handling authentication, you might still use Supabase for other database operations.
-// If Supabase is ONLY used for auth and profiles previously, and Clerk replaces that entirely,
-// you might not need this client anymore, or you might reconfigure it for non-auth database tasks.
-// For now, we'll keep it in case it's used for `message_feedback` or other tables.
+// This is the primary Supabase client initialization for the application.
+// It is used by AuthContext and other parts of the app that need to interact with Supabase.
 
 if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error(
-    'Missing environment variables. Please check your .env.local file for NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    'Missing Supabase environment variables. Please check your .env.local file for NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
   );
 }
 
@@ -16,12 +14,10 @@ export const supabase: SupabaseClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   {
-    // If Clerk is the primary auth, Supabase's session persistence might not be strictly necessary
-    // unless you are using RLS policies that depend on a Supabase JWT.
-    // For simplicity, keeping auth config, but it might be removable if Clerk fully gates DB access.
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
+      persistSession: true, // Persist session in localStorage
+      autoRefreshToken: true, // Automatically refresh token
+      // detectSessionInUrl: true, // Useful for password recovery, email confirmation links
     }
   }
 );
