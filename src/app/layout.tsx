@@ -6,8 +6,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { GoogleAnalytics } from '@/components/talkzi/GoogleAnalytics';
-import { AuthProvider } from '@/contexts/AuthContext'; // Import Supabase AuthProvider
+import { AuthProvider } from '@/contexts/AuthContext';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -55,44 +54,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <AuthProvider> {/* Use Supabase AuthProvider */}
-      <html lang="en" className={`${poppins.variable} ${plusJakartaSans.variable} ${notoSans.variable} ${geistMono.variable} ${hind.variable}`}>
-        <head>
-          {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && GA_MEASUREMENT_ID !== "" && (
-            <>
-              <Script
-                strategy="afterInteractive"
-                src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-              />
-              <Script
-                id="google-analytics"
-                strategy="afterInteractive"
-                dangerouslySetInnerHTML={{
-                  __html: `
-                    window.dataLayer = window.dataLayer || [];
-                    function gtag(){dataLayer.push(arguments);}
-                    gtag('js', new Date());
-                    gtag('config', '${GA_MEASUREMENT_ID}', {
-                      page_path: window.location.pathname,
-                    });
-                  `,
-                }}
-              />
-            </>
-          )}
-        </head>
-        <body className={`antialiased flex flex-col min-h-screen bg-background text-foreground font-poppins`}>
-            <div className="flex-grow">
-              {children}
-            </div>
-            <Toaster />
-            <VercelAnalytics /> 
-            <SpeedInsights />
-            {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "YOUR_GA_MEASUREMENT_ID" && GA_MEASUREMENT_ID !== "" && (
-              <GoogleAnalytics GA_MEASUREMENT_ID={GA_MEASUREMENT_ID} />
-            )}
-        </body>
-      </html>
-    </AuthProvider>
+    <html lang="en" className={`${poppins.variable} ${plusJakartaSans.variable} ${notoSans.variable} ${geistMono.variable} ${hind.variable}`}>
+      <body className={`antialiased flex flex-col min-h-screen bg-background text-foreground font-poppins`}>
+        <AuthProvider>
+          <div className="flex-grow">
+            {children}
+          </div>
+          <Toaster />
+          <Analytics /> 
+          <SpeedInsights />
+        </AuthProvider>
+      </body>
+    </html>
   );
 }
