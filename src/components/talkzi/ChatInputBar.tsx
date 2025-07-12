@@ -1,57 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { SendHorizonal, Loader2, Mic, MicOff } from 'lucide-react';
+import { SendHorizonal, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-
-// Add type declarations for Web Speech API
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message: string;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
-}
-
-interface SpeechRecognitionResultList {
-  [index: number]: SpeechRecognitionResult;
-  length: number;
-}
-
-interface SpeechRecognitionResult {
-  [index: number]: SpeechRecognitionAlternative;
-  isFinal: boolean;
-  length: number;
-}
-
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: (event: SpeechRecognitionEvent) => void;
-  onend: () => void;
-  onerror: (event: SpeechRecognitionErrorEvent) => void;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
-  }
-}
 
 interface ChatInputBarProps {
   onSendMessage: (message: string) => void;
@@ -66,11 +20,6 @@ export function ChatInputBar({ onSendMessage, isLoading, sendButtonAccentColor, 
   const [isComposing, setIsComposing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const router = useRouter();
-
-  const handleMicClick = () => {
-    router.push('/audiovisualizer');
-  };
 
   const handleSubmit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -83,14 +32,9 @@ export function ChatInputBar({ onSendMessage, isLoading, sendButtonAccentColor, 
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (isComposing) return;
-    if (event.key === 'Enter') {
-      if (event.ctrlKey || event.metaKey) {
+    if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         handleSubmit();
-      }
-    } else if (event.key === 'Escape' && inputValue) {
-      event.preventDefault();
-      setInputValue('');
     }
   };
 
@@ -116,19 +60,6 @@ export function ChatInputBar({ onSendMessage, isLoading, sendButtonAccentColor, 
       className="sticky bottom-0 left-0 right-0 z-10 p-3 md:p-4 border-t bg-background/95 backdrop-blur-sm"
     >
       <div className="flex items-end w-full bg-input rounded-xl min-h-[48px] px-3 py-2 gap-2 transition-all duration-200 focus-within:ring-1 focus-within:ring-primary/50">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={handleMicClick}
-          disabled={isLoading || disabled}
-          className={cn(
-            "h-9 w-9 p-0 rounded-lg"
-          )}
-          aria-label="Start voice input"
-        >
-          <Mic className="h-4 w-4" />
-        </Button>
         <Textarea
           ref={textareaRef}
           value={inputValue}
@@ -138,7 +69,7 @@ export function ChatInputBar({ onSendMessage, isLoading, sendButtonAccentColor, 
           onCompositionEnd={() => setIsComposing(false)}
           placeholder={
             window.innerWidth >= 768
-            ? "Type your message. Press Enter for new line, Ctrl+Enter to send."
+            ? "Type your message. Press Enter to send."
             : "Type a message..."
           }
           className={cn(
