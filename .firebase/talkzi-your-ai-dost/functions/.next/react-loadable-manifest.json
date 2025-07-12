@@ -1,0 +1,48 @@
+{
+  "../node_modules/@supabase/auth-js/dist/module/lib/helpers.js -> @supabase/node-fetch": {
+    "id": 2410,
+    "files": []
+  },
+  "../node_modules/@supabase/functions-js/dist/module/helper.js -> @supabase/node-fetch": {
+    "id": 2410,
+    "files": []
+  },
+  "../node_modules/@supabase/realtime-js/dist/module/RealtimeClient.js -> @supabase/node-fetch": {
+    "id": 2410,
+    "files": []
+  },
+  "../node_modules/@supabase/realtime-js/dist/module/RealtimeClient.js -> ws": {
+    "id": 294,
+    "files": [
+      "static/chunks/294.e72d2554be082393.js"
+    ]
+  },
+  "../node_modules/@supabase/storage-js/dist/module/lib/helpers.js -> @supabase/node-fetch": {
+    "id": 2410,
+    "files": []
+  },
+  "app/page.tsx -> @/components/talkzii/landing/NewLandingAboutUs": {
+    "id": 2613,
+    "files": [
+      "static/chunks/2613.4e0ac56040f707c8.js"
+    ]
+  },
+  "app/page.tsx -> @/components/talkzii/landing/NewLandingFeatures": {
+    "id": 7983,
+    "files": [
+      "static/chunks/7983.8235449e0d4c1fc0.js"
+    ]
+  },
+  "app/page.tsx -> @/components/talkzii/landing/NewLandingFooter": {
+    "id": 8387,
+    "files": [
+      "static/chunks/8387.5a92babc26f875b8.js"
+    ]
+  },
+  "app/page.tsx -> @/components/talkzii/landing/NewLandingValues": {
+    "id": 9042,
+    "files": [
+      "static/chunks/9042.8144e1eb5011b67b.js"
+    ]
+  }
+}

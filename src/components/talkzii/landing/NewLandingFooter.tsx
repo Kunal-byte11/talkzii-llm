@@ -25,7 +25,7 @@ export function NewLandingFooter() {
             Contact Us: <a href="mailto:support@talkzii.com" className="underline hover:text-primary">support@talkzii.com</a>
           </p>
         </div>
-        <p className="text-background text-base font-normal leading-normal">© 2025 Talkzii. Made with 💜 for Gen Z.</p>
+        <p className="text-background text-base font-normal leading-normal">© 2025 Talkzii. Made by Kunal.</p>
       </footer>
       <div className="h-5 bg-background"></div>
     </div>

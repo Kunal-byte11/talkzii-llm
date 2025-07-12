@@ -4,23 +4,6 @@
 import Image from "next/image";
 
 export function NewLandingAboutUs() {
-  const teamMembers = [
-    {
-      name: " Kunal Dubey",
-      title: "Founder & CEO",
-      description: "Visionary leader driving Talkzii's mission to foster meaningful connections through AI.",
-      imageUrl: "/icons/assets/kunal1.jpg",
-      imageHint: "man portrait",
-    },
-    {
-      name: "Vedant Ghodki",
-      title: "Co-founder & CTO",
-      description: "Architecting the innovative technology that powers Talkzii's empathetic conversations.",
-      imageUrl: "/icons/assets/vedant.jpg",
-      imageHint: "man portrait",
-    },
-  ];
-
   return (
     <div id="about-us-section" className="flex flex-col gap-10 px-4 py-10 @container scroll-mt-20 text-center">
       <div className="flex flex-col gap-4 text-left">
@@ -46,35 +29,6 @@ export function NewLandingAboutUs() {
               At Talkzii, we aim to create a space for meaningful interactions with AI companions, fostering creativity and connection.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* Meet Our Team Section */}
-      <div id="peoples-subsection" className="mt-12 text-left scroll-mt-20">
-        <div className="flex flex-col items-start mb-10">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
-                People
-            </h2>
-            <div className="h-1 w-24 bg-primary rounded-full"></div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 lg:gap-8">
-          {teamMembers.map((member) => (
-            <div key={member.name} className="flex flex-col items-center text-center p-6 rounded-xl border border-border bg-card shadow-sm hover:shadow-lg transition-shadow duration-300">
-              <div className="relative w-32 h-32 mb-4">
-                <Image
-                  src={member.imageUrl}
-                  alt={member.name}
-                  layout="fill"
-                  objectFit="cover"
-                  className="rounded-full"
-                  data-ai-hint={member.imageHint}
-                />
-              </div>
-              <h3 className="text-xl font-bold text-foreground">{member.name}</h3>
-              <p className="text-sm text-bold font-medium">{member.title}</p>
-              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{member.description}</p>
-            </div>
-          ))}
         </div>
       </div>
     </div>
